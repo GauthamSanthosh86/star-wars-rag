@@ -1,4 +1,5 @@
 import requests
+import re
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -7,7 +8,7 @@ from qdrant_client import QdrantClient
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
 
 GEMINI_MODEL = "gemini-3.5-flash-lite"  # fallback: "gemini-3.1-flash-lite"
@@ -34,6 +35,24 @@ def format_docs(docs):
         f"[{d.metadata['title']}]\n{d.page_content}" for d in docs
     )
 
+def scene_heading(text):
+    """Return the first INT./EXT. line in chunk or a fallback"""
+    for line in text.splitlines():
+        line = line.strip()
+        if re.match(r"^(INT\.|EXT\.|INT/EXT)", line):
+            return line
+    return "(Continues a scene)"
+
+def print_sources(docs):
+    seen = set()
+    for d in docs:
+        key = (d.metadata["title"], d.metadata.get("start_index"))
+        if key in seen:
+            continue
+        seen.add(key)
+        snippet = " ".join(d.page_content.split())[:140]
+        print(f"  - {d.metadata['title']} | {scene_heading(d.page_content)}")
+        print(f"    \"{snippet}...\"")
 
 def main():
     client = QdrantClient(path=PERSIST_PATH)
@@ -89,11 +108,14 @@ def main():
     # retriever = vectorstore.as_retriever(search_kwargs={"k": 8}) old one
     retriever = vectorstore.as_retriever(
         search_type = "mmr",
-        search_kwargs ={"k": 15} 
+        search_kwargs ={"k": 15, "fetch_k": 50, "lambda_mult": 0.8} 
     )
 
     template = """You are a Star Wars Movie Script Expert. Use ONLY the following script excerpts to answer.
     If answer is partly contained. Provide best possible answer based on text in the context.
+    If the excerpts only partly answer the question,
+    say what is covered and what is missing. 
+    Never combine numbers or facts from different excerpts unless the text clearly links them.
 If the answer isn't in the context, say "There is no information about this in the original Star Wars Scripts."
 
 Write the answer as one short paragraph of plain prose. Do not use bullet points, bold text, or headings.
@@ -108,11 +130,16 @@ Answer:"""
 
     prompt = ChatPromptTemplate.from_template(template)
 
-    rag_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    answer_chain = (
+        RunnablePassthrough.assign(context=lambda x: format_docs(x["docs"]))
         | prompt
         | llm
         | StrOutputParser()
+    )
+
+    rag_chain = (
+        RunnableParallel(docs=retriever, question=RunnablePassthrough())
+        | RunnablePassthrough.assign(answer=answer_chain)
     )
 
     print("\n--- The Star Wars Movie Expert is ready to answer your questions ---")
@@ -120,8 +147,12 @@ Answer:"""
         query = input("\nYou: ")
         if query.lower() in ["exit", "quit"]:
             break
-        response = rag_chain.invoke(query)
-        print(f"\nStar Wars Movie Expert: {response}")
+        try:
+            result = rag_chain.invoke(query)
+            print(f"\nStar Wars Movie Expert: {result['answer']}")
+            print_sources(result["docs"])
+        except Exception as e:
+            print(f"\nError: {str(e)[:200]}")
 
 
 if __name__ == "__main__":

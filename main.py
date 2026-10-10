@@ -106,9 +106,7 @@ def main():
         print(f"Stored {len(all_chunks)} chunks in Qdrant.")
 
     # retriever = vectorstore.as_retriever(search_kwargs={"k": 8}) old one
-    retriever = vectorstore.as_retriever(
-        search_type = "mmr",
-        search_kwargs ={"k": 15, "fetch_k": 50, "lambda_mult": 0.8} 
+    retriever = vectorstore.as_retriever(search_kwargs ={"k": 15} 
     )
 
     template = """You are a Star Wars Movie Script Expert. Use ONLY the following script excerpts to answer.

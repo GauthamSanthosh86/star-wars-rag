@@ -40,8 +40,11 @@ Results on a 13-question test set:
 
 | Retriever | Hit rate |
 |---|---|
+| Similarity, k=5 | 54% |
 | Similarity, k=8 | 62% |
+| Similarity, k=10 | 69% |
 | **Similarity, k=15 (used)** | **85%** |
+| Similarity, k=20 | 85% |
 | MMR, k=15, lambda=0.8 | 62% |
 | MMR, k=15, lambda=0.5 | 69% |
 

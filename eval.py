@@ -51,12 +51,11 @@ TESTS = [
 ]
 
 CONFIGS = {
+    "similarity k=5":  dict(search_type="similarity", search_kwargs={"k": 5}),
     "similarity k=8":  dict(search_type="similarity", search_kwargs={"k": 8}),
+    "similarity k=10": dict(search_type="similarity", search_kwargs={"k": 10}),
     "similarity k=15": dict(search_type="similarity", search_kwargs={"k": 15}),
-    "mmr k=15 l=0.8":  dict(search_type="mmr",
-                            search_kwargs={"k": 15, "fetch_k": 50, "lambda_mult": 0.8}),
-    "mmr k=15 l=0.5":  dict(search_type="mmr",
-                            search_kwargs={"k": 15, "fetch_k": 50, "lambda_mult": 0.5}),
+    "similarity k=20": dict(search_type="similarity", search_kwargs={"k": 20}),
 }
 
 
